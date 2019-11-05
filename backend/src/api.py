@@ -16,7 +16,15 @@ CORS(app)
 !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
 !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
 '''
-# db_drop_and_create_all()
+#db_drop_and_create_all()
+
+def getJSONListFromObject(obj):
+    if not isinstance(obj, list):
+        obj = [obj]
+    
+    jsonList = json.dumps(obj)
+
+    return jsonList
 
 ## ROUTES
 
@@ -34,7 +42,15 @@ def index():
 '''
 @app.route('/drinks', methods=['GET'])
 def get_drinks():
-    return jsonify({'message': 'getting drinks'})
+    drinks = Drink.query.all()
+
+    drinksArr = []
+    for drink in drinks:
+        drinksArr.append(drink.short())
+    return jsonify({
+                    'success': True,
+                    'drinks': drinksArr
+                    }), 200
 
 '''
 @TODO implement endpoint
@@ -45,8 +61,17 @@ def get_drinks():
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks-detail', methods=['GET'])
-def get_drinks_detail():
-    return jsonify({'message': 'getting drinks-detail'})
+@requires_auth('get:drinks-detail')
+def get_drinks_detail(jwt):
+    drinks = Drink.query.all()
+    drinksArr = []
+    for drink in drinks:
+        drinksArr.append(drink.long())
+    return jsonify({
+                    'success': True,
+                    'drinks': drinksArr
+                    }), 200
+
 
 '''
 @TODO implement endpoint
@@ -58,8 +83,23 @@ def get_drinks_detail():
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks', methods=['POST'])
-def post_drinks():
-    return jsonify({'message': 'post drinks'})
+@requires_auth('post:drinks')
+def post_drinks(jwt):
+    data = request.get_json()
+    if 'title' and 'recipe' not in data:
+        abort(422)
+        
+    title = data['title']
+    recipe = data['recipe']
+
+    recipeJSON = getJSONListFromObject(recipe)
+
+    drink = Drink(title=title, recipe=recipeJSON)
+    drink.insert()
+        
+
+    return jsonify({'success': True,
+                    'drinks':drink.long()})
 
 
 '''
@@ -74,8 +114,25 @@ def post_drinks():
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks/<id>', methods=['PATCH'])
-def patch_drinks(id):
-    return jsonify({'message': 'post drinks'})
+@requires_auth('patch:drinks')
+def patch_drinks(jwt, id):
+    drink = Drink.query.get(id)
+    if drink is None:
+        abort(404)
+    
+    data = request.get_json()
+    if "title" in data:
+        drink.title = data['title']
+
+    if "recipe" in data:
+        recipe = data['recipe']
+        recipeJSON = getJSONListFromObject(recipe)
+    
+        drink.recipe = recipeJSON
+    
+    drink.update()
+    return jsonify({'success': True,
+                    'drinks':drink.long()})
 
 '''
 @TODO implement endpoint
@@ -88,8 +145,18 @@ def patch_drinks(id):
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks/<id>', methods=['DELETE'])
-def delete_drinks(id):
-    return jsonify({'message': 'post drinks'})
+@requires_auth('delete:drinks')
+def delete_drinks(jwt, id):
+    drink = Drink.query.get(id)
+    if drink is None:
+        abort(404)
+    
+    id = drink.id
+    
+    drink.delete()
+    return jsonify({'success': True,
+                    'delete': id})
+
 
 @app.route('/login-results', methods=['GET'])
 def login_results():
@@ -107,6 +174,8 @@ def unprocessable(error):
                     "error": 422,
                     "message": "unprocessable"
                     }), 422
+
+
 
 '''
 @TODO implement error handlers using the @app.errorhandler(error) decorator
@@ -129,3 +198,23 @@ def unprocessable(error):
 @TODO implement error handler for AuthError
     error handler should conform to general task above 
 '''
+
+@app.errorhandler(404)
+def unprocessable(error):
+    return jsonify({
+                    "success": False, 
+                    "error": 404,
+                    "message": "resource not found"
+                    }), 404
+
+
+@app.errorhandler(AuthError)
+def processAuthError(error):
+    message = [str(x) for x in error.args]
+    status_code = error.status_code
+
+    return jsonify({
+                    "success": message, 
+                    "error": status_code,
+                    "message": "resource not found"
+                    }), status_code

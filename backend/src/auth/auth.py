@@ -8,15 +8,17 @@ from urllib.request import urlopen
 
 
 
-AUTH0_DOMAIN = 'udacity-fsnd.auth0.com' #dev-identityaccess.auth0.com
+AUTH0_DOMAIN = 'dev-identityaccess.auth0.com'
 ALGORITHMS = ['RS256']
 API_AUDIENCE = 'coffee'
 
 
-AUTH0_AUTHORIZE_URL="https://dev-identityaccess.auth0.com/authorize?client_id=ojMkR23sKilvgIJcnk949eK9sPjZzQc4&audience=coffee&response_type=token&redirect_uri=http://localhost:5000/login-results"
-# Manager access token:
-'http://localhost:5000/login-results#access_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6Ik5UbEROekV4UmpVNE9USXpSalk1TmtFMk0wUTNORFZFUWpoRlFUaERORFl3TkRZM05UazROUSJ9.eyJpc3MiOiJodHRwczovL2Rldi1pZGVudGl0eWFjY2Vzcy5hdXRoMC5jb20vIiwic3ViIjoiYXV0aDB8NWRiZGYwMmIxMmI1YmIwZTI2MGVjM2IxIiwiYXVkIjoiY29mZmVlIiwiaWF0IjoxNTcyNzI5MjM3LCJleHAiOjE1NzI3MzY0MzcsImF6cCI6Im9qTWtSMjNzS2lsdmdJSmNuazk0OWVLOXNQalp6UWM0Iiwic2NvcGUiOiIiLCJwZXJtaXNzaW9ucyI6WyJkZWxldGU6ZHJpbmtzIiwiZ2V0OmRyaW5rcy1kZXRhaWwiLCJwYXRjaDpkcmlua3MiLCJwb3N0OmRyaW5rcyJdfQ.n27y-h5kYB-qj9igpmzeRs1SkAUCTiYt9paVw74lOvnZ4PXoN7RwoNe4PY0wLsn0GbHzSudrpSHlWEiGj1CH05QnHSP05TeMFghp-slt2EzEOmZ4935Rz-NUzDeWBrCTCRKnZ_ygKKlbKAuBZkr1a5eFR-qu0VYOGbYn5xNvwCs7rni0ztrjdLg41fl4eqLBXLfGID_gbc6ddHVRCkKSCO_WVeWk2ZzYp3mhp89fPFTnVl0ZD4zpUFMfB2g0oHPNiO2PRHly7wgyenMNpHRw_XrgAsykdKrDP7hhPMzUXZLHuiR3BodqAgZRP-4vi1PNhoD7KOP6p6F0wWulp1QvHQ&expires_in=7200&token_type=Bearer'
+AUTH0_AUTHORIZE_URL="https://dev-identityaccess.auth0.com/authorize?client_id=ojMkR23sKilvgIJcnk949eK9sPjZzQc4&audience=coffee&response_type=token&scope=openid+profile+email&redirect_uri=http://localhost:5000/login-results"
+
+
 ## AuthError Exception
+AUTH0_USER_INF0="https://dev-identityaccess.auth0.com/userinfo" # pass bearer token
+AUTH0_LOGOUT="https://dev-identityaccess.auth0.com/v2/logout"
 '''
 AuthError Exception
 A standardized way to communicate auth failure modes
@@ -38,7 +40,27 @@ class AuthError(Exception):
     return the token part of the header
 '''
 def get_token_auth_header():
-   raise Exception('Not Implemented')
+    if "Authorization" not in request.headers:
+        raise AuthError({
+                            'code': 'invalid_authorization',
+                            'description': 'Authorization not included in Header.'
+                        }, 401)
+    
+    auth_header = request.headers['Authorization']
+    header_parts = auth_header.split(' ')
+    if len(header_parts)!=2:
+        raise AuthError({
+                            'code': 'invalid_header',
+                            'description': 'Invalid Header.'
+                        }, 401)
+    elif header_parts[0].lower() != 'bearer':
+        raise AuthError({
+                            'code': 'invalid_bearer token',
+                            'description': 'Bearer missing in header.'
+                        }, 401)
+    bearer  = header_parts[0]
+    token = header_parts[1]
+    return token
 
 '''
 @TODO implement check_permissions(permission, payload) method
@@ -52,6 +74,18 @@ def get_token_auth_header():
     return true otherwise
 '''
 def check_permissions(permission, payload):
+    if 'permissions' not in payload:
+                        raise AuthError({
+                            'code': 'invalid_claims',
+                            'description': 'Permissions not included in JWT.'
+                        }, 400)
+
+    if permission not in payload['permissions']:
+        raise AuthError({
+            'code': 'unauthorized',
+            'description': 'Permission not found.'
+        }, 403)
+    return True
     raise Exception('Not Implemented')
 
 '''
@@ -68,7 +102,57 @@ def check_permissions(permission, payload):
     !!NOTE urlopen has a common certificate error described here: https://stackoverflow.com/questions/50236117/scraping-ssl-certificate-verify-failed-error-for-http-en-wikipedia-org
 '''
 def verify_decode_jwt(token):
-    raise Exception('Not Implemented')
+    jsonurl = urlopen(f'https://{AUTH0_DOMAIN}/.well-known/jwks.json')
+    jwks = json.loads(jsonurl.read())
+    unverified_header = jwt.get_unverified_header(token)
+
+    rsa_key = {}
+    if 'kid' not in unverified_header:
+        raise AuthError({
+            'code': 'invalid_header',
+            'description': 'Authorization malformed.'
+        }, 401)
+
+    for key in jwks['keys']:
+        if key['kid'] == unverified_header['kid']:
+            rsa_key = {
+                'kty': key['kty'],
+                'kid': key['kid'],
+                'use': key['use'],
+                'n': key['n'],
+                'e': key['e']
+            }
+    if rsa_key:
+        try:
+            payload = jwt.decode(
+                token,
+                rsa_key,
+                algorithms=ALGORITHMS,
+                audience=API_AUDIENCE,
+                issuer='https://' + AUTH0_DOMAIN + '/'
+            )
+            return payload
+
+        except jwt.ExpiredSignatureError:
+            raise AuthError({
+                'code': 'token_expired',
+                'description': 'Token expired.'
+            }, 401)
+
+        except jwt.JWTClaimsError:
+            raise AuthError({
+                'code': 'invalid_claims',
+                'description': 'Incorrect claims. Please, check the audience and issuer.'
+            }, 401)
+        except Exception:
+            raise AuthError({
+                'code': 'invalid_header',
+                'description': 'Unable to parse authentication token.'
+            }, 400)
+    raise AuthError({
+                'code': 'invalid_header',
+                'description': 'Unable to find the appropriate key.'
+            }, 400)
 
 '''
 @TODO implement @requires_auth(permission) decorator method
@@ -85,7 +169,15 @@ def requires_auth(permission=''):
         @wraps(f)
         def wrapper(*args, **kwargs):
             token = get_token_auth_header()
-            payload = verify_decode_jwt(token)
+            try:
+                payload = verify_decode_jwt(token)
+                
+            except:
+                raise AuthError({
+                'code': 'invalid_payload',
+                'description': 'Unable to decode payload.'
+            }, 400)
+            
             check_permissions(permission, payload)
             return f(payload, *args, **kwargs)
 

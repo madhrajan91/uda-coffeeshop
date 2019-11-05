@@ -60,6 +60,7 @@ class Drink(db.Model):
         long form representation of the Drink model
     '''
     def long(self):
+        print(self.recipe)
         return {
             'id': self.id,
             'title': self.title,
@@ -76,8 +77,13 @@ class Drink(db.Model):
             drink.insert()
     '''
     def insert(self):
-        db.session.add(self)
-        db.session.commit()
+        try:
+            db.session.add(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
+        #finally:
+            #db.session.close()
 
     '''
     delete()
@@ -88,9 +94,11 @@ class Drink(db.Model):
             drink.delete()
     '''
     def delete(self):
-        db.session.delete(self)
-        db.session.commit()
-
+        try:
+            db.session.delete(self)
+            db.session.commit()
+        except:
+            db.session.rollback()
     '''
     update()
         updates a new model into a database
@@ -101,7 +109,12 @@ class Drink(db.Model):
             drink.update()
     '''
     def update(self):
-        db.session.commit()
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+
+
 
     def __repr__(self):
         return json.dumps(self.short())
