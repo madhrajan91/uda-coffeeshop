@@ -12,12 +12,11 @@ AUTH0_DOMAIN = 'dev-identityaccess.auth0.com'
 ALGORITHMS = ['RS256']
 API_AUDIENCE = 'coffee'
 
-
+#url with scope (for reference only)
 AUTH0_AUTHORIZE_URL="https://dev-identityaccess.auth0.com/authorize?client_id=ojMkR23sKilvgIJcnk949eK9sPjZzQc4&audience=coffee&response_type=token&scope=openid+profile+email&redirect_uri=http://localhost:5000/login-results"
-
-
-## AuthError Exception
+#url for getting user info if scope is passed (for reference only)
 AUTH0_USER_INF0="https://dev-identityaccess.auth0.com/userinfo" # pass bearer token
+# url to logout.
 AUTH0_LOGOUT="https://dev-identityaccess.auth0.com/v2/logout"
 '''
 AuthError Exception

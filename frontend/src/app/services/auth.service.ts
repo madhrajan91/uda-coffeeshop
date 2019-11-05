@@ -3,6 +3,8 @@ import { JwtHelperService } from '@auth0/angular-jwt';
 
 import { environment } from '../../environments/environment';
 
+import {DOCUMENT} from '@angular/common'
+
 const JWTS_LOCAL_KEY = 'JWTS_LOCAL_KEY';
 const JWTS_ACTIVE_INDEX_KEY = 'JWTS_ACTIVE_INDEX_KEY';
 
@@ -28,6 +30,7 @@ export class AuthService {
     link += 'response_type=token&';
     link += 'client_id=' + this.clientId + '&';
     link += 'redirect_uri=' + this.callbackURL + callbackPath;
+    console.log(link)
     return link;
   }
 
@@ -72,6 +75,13 @@ export class AuthService {
     this.token = '';
     this.payload = null;
     this.set_jwt();
+    
+    let link = 'https://';
+    link += this.url + '.auth0.com';
+    link += '/v2/logout?';
+    link += 'client_id=' + this.clientId + '&';
+    link += 'returnTo=' + 'http://localhost:8100/tabs/drink-menu';
+    document.location.href=link;
   }
 
   can(permission: string) {

@@ -214,7 +214,7 @@ def processAuthError(error):
     status_code = error.status_code
 
     return jsonify({
-                    "success": message, 
+                    "success": False, 
                     "error": status_code,
-                    "message": "resource not found"
+                    "message": message
                     }), status_code
